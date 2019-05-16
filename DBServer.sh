@@ -1,12 +1,14 @@
 #!/bin/bash
 # Install the database
-/usr/bin/yum -y install mariadb-server
-/usr/bin/systemctl enable mariadb.service
-/usr/bin/systemctl start mariadb.service
+sudo /usr/bin/apt-get -y update
+export DEBIAN_FRONTEND=noninteractive
+sudo debconf-set-selections <<< 'mariadb-server mysql-server/root_password password PASS'
+sudo debconf-set-selections <<< 'mariadb-server mysql-server/root_password_again password PASS'
+sudo /usr/bin/apt-get -y install mariadb-server
 ## Configure the Database
 mysql_user_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 # Secure the database installation
-/usr/bin/mysqladmin -u root password "$mysql_root_password"
+/usr/bin/mysqladmin -u root -pPASS password "$mysql_root_password"
 /usr/bin/mysql -u root -p"$mysql_root_password" -e "UPDATE mysql.user SET Password=PASSWORD('$mysql_root_password') WHERE User='root'"
 /usr/bin/mysql -u root -p"$mysql_root_password" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')"
 /usr/bin/mysql -u root -p"$mysql_root_password" -e "DELETE FROM mysql.user WHERE User=''"
@@ -17,8 +19,8 @@ mysql_user_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head 
 # Flush privileges
 /usr/bin/mysql -u root -p"$mysql_root_password" -e "FLUSH PRIVILEGES"
 # Enable remote connections
-/usr/bin/echo "bind-address = $mysql_bind_address" >> /etc/my.cnf
-# Open MySQL firewall for remote connections
-/usr/bin/firewall-cmd --zone=public --add-service=mysql --permanent
-/usr/bin/firewall-cmd --reload
-/usr/bin/systemctl restart mariadb.service
+/bin/cat << EOL | sudo tee /etc/mysql/conf.d/custom.cnf
+[mysqld]
+bind-address = $mysql_bind_address
+EOL
+sudo /usr/bin/service mysql restart
